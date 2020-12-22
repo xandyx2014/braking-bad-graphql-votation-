@@ -1,7 +1,7 @@
 import { IResolvers } from "graphql-tools";
 import { getCharacter, getCharacters, asignVoteId, getVote } from "../lib/database-operations";
 import { Datetime } from "../lib/datetime";
-import { COLLECTIONS, CHANGE_VOTES, CHANGE_VOTE } from "../config/constants";
+import { COLLECTIONS, CHANGE_VOTES } from "../config/constants";
 async function response(status: boolean, message: string, db: any) {
     return {
         status,
@@ -9,12 +9,8 @@ async function response(status: boolean, message: string, db: any) {
         characters: await getCharacters(db)
     }
 }
-async function sendNotification(pubsub: any, db: any, id: string) {
-    const characters: Array<object> = await getCharacters(db);
-    pubsub.publish(CHANGE_VOTES, { changeVotes: characters});
-    // FIltrar el personaje seleccionado de la lista 
-    const selectCharacter = characters.filter((c: any) => c.id == id)[0];
-    pubsub.publish(CHANGE_VOTE, {changeVote: selectCharacter});
+async function sendNotification(pubsub: any, db: any) {
+    pubsub.publish(CHANGE_VOTES, { changeVotes: await getCharacters(db)})
 }
 const mutation: IResolvers = {
     Mutation: {
@@ -34,7 +30,7 @@ const mutation: IResolvers = {
             // Añadimos el voto
             return await db.collection(COLLECTIONS.VOTES).insertOne(vote).then(
                 async() => {
-                    sendNotification(pubsub, db, character);
+                    sendNotification(pubsub, db);
                     return response(true, 'El personaje existe y se ha emitido correctamente el voto', db)
                 }
             ).catch(
@@ -60,7 +56,7 @@ const mutation: IResolvers = {
                 { $set: { character } }
             ).then(
                 async() => {
-                    sendNotification(pubsub, db, character);
+                    sendNotification(pubsub, db);
                     return response(true, 'Voto actualizado correctamente', db);
                 }
             ).catch(
@@ -79,7 +75,7 @@ const mutation: IResolvers = {
             // Si existe, borrarlo
             return await db.collection(COLLECTIONS.VOTES).deleteOne({ id }).then(
                 async() => {
-                    sendNotification(pubsub, db, id);
+                    sendNotification(pubsub, db);
                     return response(true, 'Voto borrado correctamente', db);
                 }
             ).catch(
